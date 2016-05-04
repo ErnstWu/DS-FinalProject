@@ -4,8 +4,19 @@ author: "Di Wu, Samuel Chao and Bry Power"
 output: html_document
 ---
 
-load libraries
-```{r, warning=FALSE, message=FALSE}
+## Project Overview
+
+In this project, we will predict in which country a new user will make his/her first booking through AirBnB. There are 12 possible outcomes of the destination country: **'US', 'FR' (France), 'CA' (Canada), 'GB' (United Kingdom), 'ES' (Spain), 'IT' (Italy), 'PT' (Portugal), 'NL' (Netherlands),'DE' (Germany), 'AU' (Australia), 'NDF' (no destination found), and 'other'.* Please note that *'NDF'* is different from *'other'** because 'other' means there was a booking, but is to a country not included in the list, while 'NDF' means there wasn't a booking.
+
+## Data Description 
+
+This was originally created as a competition on Kaggle, called [Airbnb New User Bookings](https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings) and the detailed data description were provided [here](https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/data). 
+
+Because the competition ended at the time we started this project and we couldn't make any submission, I will not use test data. A proportion of the training data set will be hold out and used as our test data to see the performance of our model.
+
+Please note that we blocked the code in the analysis. 
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
 library(knitr)
 library(readr)
 library(dplyr)
@@ -14,11 +25,6 @@ library(stringr)
 library(ggplot2)
 library(gridExtra)
 
-```
-
-
-load data
-```{r}
 setwd("U:/Documents/Courses/107/final project/Original Dataset")
 dat <- read_csv("train_users_2.csv")
 dat <- rename(dat, countries=country_destination)
@@ -28,8 +34,6 @@ dat <- rename(dat, countries=country_destination)
 ## Exploratory Data Analysis
 
 ### Target 
-
-Our target is to predict in which country a new user will make his/her first booking through AirBnB. There are 12 possible outcomes of the destination country: **'US', 'FR' (France), 'CA' (Canada), 'GB' (United Kingdom), 'ES' (Spain), 'IT' (Italy), 'PT' (Portugal), 'NL' (Netherlands),'DE' (Germany), 'AU' (Australia), 'NDF' (no destination found), and 'other'.* Please note that *'NDF'* is different from *'other'** because 'other' means there was a booking, but is to a country not included in the list, while 'NDF' means there wasn't a booking.
 
 First let's take a look at the distribution of users' destination: 
 
@@ -95,6 +99,33 @@ gender.g3 +
 
 **This chart above confirms our earlier assumption, female users indeed showed a preference to more romantic destinations such as Spain, France, UK and Italy.**
 
+#### Users' Age
+
+In age variable, we found a lot of missing values and data errors, for example, there are values "2014", "2008" and ages over 100 or below 10. We think those are data errors and therefore will treat it as missing values. There are also missing ages in the data. Because we will use Extreme Gradient Boosting for modeling, both technique handles well with missing values. We will denote the missing values as -99. Following charts are non-missing ages against users' destinations.
+
+```{r, fig.width=14, fig.height=10, echo=FALSE}
+setwd("U:/Documents/Courses/107/final project/")
+dat <- read_csv("ModelDst.csv")
+dat <- rename(dat, countries=country_destination)
+
+age.eda <- dat %>% 
+  filter(age != "-99") %>%
+  ggplot(., aes(age, fill=countries))
+age.g1 <- age.eda + geom_bar(aes(position="stack"))+ 
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between ages among destinations")
+age.g2 <- age.eda + geom_bar(position="fill") +
+  ylab("destination distribution in percentage") +
+  ggtitle("Difference within ages among destinations")
+
+#put var plots together
+grid.arrange(age.g1, age.g2)
+
+```
+
+From the first bart chart, we see that majority of non-missing ages is located in between 25 and 40. Compared to other age groups, ages from 25 to 40 has the highest booking rate over all and highest booking rate to US. 
+
+This makes sense because users in this group is in the working force which provided the financial ability to travel.
 
 #### Users' Language
 
@@ -103,6 +134,10 @@ Because all of the users are located in US, over 96% of language is English. We 
 In order to visualize these data, we used log transformation in the following chart. 
 
 ```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+setwd("U:/Documents/Courses/107/final project/Original Dataset")
+dat <- read_csv("train_users_2.csv")
+dat <- rename(dat, countries=country_destination)
+
 #difference between sub-categories among destinations
 language.eda <- ggplot(dat, aes(language, fill=countries)) 
 language.eda + geom_bar(aes(position="stack")) + 
@@ -111,6 +146,8 @@ language.eda + geom_bar(aes(position="stack")) +
   ggtitle("Difference between language's sub-categories among destinations")
 ```
 
+
+### Users' Signup Information
 
 #### Users' Signup Method
 
@@ -197,85 +234,276 @@ This is again confirmed our earlier story. Majority of the users are Apple users
 
 **From these two variables, we are probably more confident to say that AirBnB should place more focus on the Apple users.**
 
+#### Users' Web Browsers
+
+This variable contains the history of users' web browser when users landed on AirBnB's page for the first time. It is similiar to signup page flow, also contains a few dominating subcategories such as "-unknown-, 12.77%", "Chrome, 29.91%", "Firefox, 15.77%", "IE, 9.87%", "Mobile Safri, 9.03%", "Safari, 21.16%", and the rest took about 1% of the data. We will therefore bin the rest of subcategories into one. We visualized the browser distribution against destinations in log.
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+browser.eda <- ggplot(dat, aes(first_browser, fill=countries)) 
+browser.eda + geom_bar(aes(position="stack")) + 
+  scale_y_log10() +
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between first web browser's sub-categories among destinations")
+```
+
+
+### Marketing Information
+
+#### Affiliate Channels
+
+This variable contains the marketing channels that AirBnB used to connect to the users. There are 8 subcategories within and we will create dummy variables to represent this variable. We again visualized it in log transformation. 
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+channel.eda <- ggplot(dat, aes(affiliate_channel, fill=countries)) 
+channel.eda + geom_bar(aes(position="stack")) + 
+  scale_y_log10() +
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between affiliate channel's sub-categories among destinations")
+```
+
+#### Affiliate Provider
+
+This variable indicates where the marketing material was displayed. Two dominating subcategories: "direct, 64.38%" and "google, 24.33%". The rest of it took about 10% of the data, which was grouped into one. We again visualized it in log transformation. 
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+provider.eda <- ggplot(dat, aes(affiliate_provider, fill=countries)) 
+provider.eda + geom_bar(aes(position="stack")) + 
+  scale_y_log10() +
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between affiliate provider's sub-categories among destinations")
+```
+
+#### First Affiliate tracked
+
+This variable contains information about what marketing material a user first interacted with before the signing up. Unfortunately, the website didn't provide detailed information about this and we've searched online, nothing useful popped up. 
+
+```{r, , warning=FALSE, fig.width=14, fig.height=4.5, echo=FALSE}
+tracked.eda <- ggplot(dat, aes(first_affiliate_tracked, fill=countries)) 
+tracked.eda + geom_bar(aes(position="stack")) + 
+  scale_y_log10() +
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between first affiliate tracked sub-categories among destinations")
+```
+
+The three marketing variables above provided information about users' preference on the marketing channels and marketing material. They can be very useful. The strategy for us is that to generate stable indicators and have them interacted with each other in the modelling stage. 
+
+### Date variables
+
+#### First booking since user's first active action
+
+This variable is derived from two provided data variables, first active time stamp and date user first booking. Because not all the used had booking history("NDF - no destination found"s), there are about 58% of them are missing. Again, we wouldn't worry about this because the nature of the algorithm we are using.
+
+```{r, fig.width=14, fig.height=10, echo=FALSE}
+setwd("U:/Documents/Courses/107/final project/")
+dat <- read_csv("ModelDst.csv")
+dat <- rename(dat, countries=country_destination)
+
+#without missing values
+Acct.eda <- dat %>% 
+  filter(Mth_AcctCtnsBooking != "-99") %>%
+  ggplot(., aes(Mth_AcctCtnsBooking, fill=countries))
+Acct.g1 <- Acct.eda + geom_bar(aes(position="stack"))+ 
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between months among destinations")
+Acct.g2 <- Acct.eda + geom_bar(position="fill") +
+  ylab("destination distribution in percentage") +
+  ggtitle("Difference within months among destinations")
+
+#put var plots together
+grid.arrange(Acct.g1, Acct.g2)
+
+```
+
+#### First booking since user created file on AirBnB  
+
+This variable is derived from two provided data variables, date user created account and date user first booking. Because not all the used had booking history("NDF - no destination found"s), there are about 58% of them are missing. Again, we wouldn't worry about this because the nature of the algorithm we are using.
+
+```{r, fig.width=14, fig.height=10, echo=FALSE}
+Active.eda <- dat %>% 
+  filter(Mth_BookingsinceActive != "-99") %>%
+  ggplot(., aes(Mth_BookingsinceActive, fill=countries))
+Active.g1 <- Active.eda + geom_bar(aes(position="stack"))+ 
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between months among destinations")
+Active.g2 <- Active.eda + geom_bar(position="fill") +
+  ylab("destination distribution in percentage") +
+  ggtitle("Difference within months among destinations")
+
+#put var plots together
+grid.arrange(Active.g1, Active.g2)
+
+```
+
+These two variables behaved quitely similiarly and that might be caused by the varialbe, date user created account, and variable, user first active action, are similiar in the sense of they might be created around the same time. We investigated it and it is in fact the reason. Over 99.9% of users' first activity on AirBnB is recorded at the same day as the date of account creation. 
+
+We will then just use the first booking since user created file on AirBnB variable. 
+
+```{r, echo=FALSE}
+dat$Mth_AcctCtnsBooking <- NULL
+```
+
+### Web Session Log
+
+This is provided in a separated data set and it contains the users' action, actiion type and action details. One user might contains hundreds of web browsing actiion records. We also found that among 135,483 unique users in this data set, only 73,815 users are contained in the training data set. This means only 35% of users in training has some information from web session log. It brought the issues of robustness again because we know, in practics, variables with 80% of missing value will not provide valuable information to the model and will NOT however produce a stable prediction. 
+
+We aggregated the values to user level and counted the number of times each actions, action types and action details occured. However, most of these informations contains over 80% of missing values in training data set and therefore, we decided to use it as indicators. Continuous values won't provide stable results. 
+
+We also noticed that these three variables are very noisy and lays on each other. For example, there hundreds of different actions, and some actions are associated with empty valued action types and detail. To exclude the noise from modeling development stage, we chose only action types because it is the least sparse and more representitive for users' web browsing behaviors. 
+
+We regrouped the sub-categories by its size and meaning. For example, "message to host change", "contact_host" would be regrouped into "contact host". 
+
+As for now, we have cleaned the data relied on the information gained from data explorary analysis and also derived more analytical varaibles for modeling. Please note it that some of the data manipulation was done in SAS. The SAS code is provided in our [repository](https://github.com/ErnstWu/DS-FinalProject) on GitHub.
 
 ## Model Development
 
-### Feature Engineering
+From here, we will use cleaned data and derived variables for modeling. The modeling data set can be found in our [repository](https://github.com/ErnstWu/DS-FinalProject) on GitHub.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+### Partition the dataset
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+We will create two dataset randomly splitted from the original training dataset in proportion of 4:6 because as we mentioned earlier, the competition is over; we couldn't make any submissions. We will use 40% of the data from the original training dataset as our hold-out test set and 60% of them as our new training dataset. Because this dataset is still very big, we will sample 30% of them to model.
 
-```{r}
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+set.seed(755)
+n_test <- round(nrow(dat) * 0.4)
+test_indices <- sample(1:nrow(dat), n_test, replace=FALSE)
+test <- dat[test_indices,]
+train <- dat[-test_indices,]
+rm(dat) #to save space 
 
-```
-
-### General Naive Bayes Classifiers
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
-
-```
-
-### Random Forest
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
+n_train <- round(nrow(train) / 5)
+train_indices <- sample(1:nrow(train), n_train, replace=FALSE)
+dtrain <- train[train_indices,]
 
 ```
+
 
 ### Extreme Gradient Boosting
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+#### Cross Validation
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Here we used cross validation to adjust the parameters.
 
-```{r}
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(knitr)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(gridExtra)
+setwd("U:/Documents/Courses/107/final project/")
+dat <- read_csv("ModelDst.csv")
+dat <- rename(dat, countries=country_destination)
+dat$countries <- NULL
+dat$Mth_BookingsinceActive <-NULL
+set.seed(755)
+n_test <- round(nrow(dat) * 0.4)
+test_indices <- sample(1:nrow(dat), n_test, replace=FALSE)
+test <- dat[test_indices,]
+train <- dat[-test_indices,]
 
+
+n_train <- round(nrow(train) / 5)
+train_indices <- sample(1:nrow(train), n_train, replace=FALSE)
+dtrain <- train[train_indices,]
+library(xgboost)
+label <- as.numeric(dtrain[[57]])
+data <- as.matrix(sapply(dtrain[2:56], as.numeric))
+
+cv.res <- xgb.cv(data = data, nfold = 3, label = label,  
+                 objective = "multi:softmax", num_class = 12,
+                 eval_metric = "merror",
+                 nrounds = 500, nthread =8, 
+                 eta = 0.05, gamma = 1,  
+                 max_depth = 4, min_child_weight = 1, max_delta_step = 1, verbose = F, 
+                 subsample = 0.8, colsample_bytree = 0.8)
 ```
 
-## Discussion
+What we are looking for here is an increase in test errors, if we see one, then we know where to stop. We could try a few different set of parameters but this is the one we found after a few try. Next we build the function. 
 
-### Problem 1
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+xgb.func <- xgboost(data = data, label = label, objective = "multi:softmax", num_class = 12,
+                    eval_metric = "merror",
+                    nrounds = 200, nthread =8, 
+                    eta = 0.05, gamma = 1,  
+                    max_depth = 4, min_child_weight = 1, max_delta_step = 1, verbose = F, 
+                    subsample = 0.8, colsample_bytree = 0.8)
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
-
+#variable's importance 
+importance_matrix<-xgb.importance(dimnames(data)[[2]], model = xgb.func)
+xgb.plot.importance(importance_matrix)
 ```
 
-### Problem 2
+From the graph, we realized variable, Mth_bookingsinceActive, is a confounding variable. It is true that every user who booked his/her trip will have a booking date and therefore we must remove this variable. And yes, we have to restart the modeling process. 
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+#### Re-apply the modeling the process without confounding variable.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(knitr)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(gridExtra)
+setwd("U:/Documents/Courses/107/final project/")
+dat <- read_csv("ModelDst.csv")
+dat <- rename(dat, countries=country_destination)
+dat$Mth_AcctCtnsBooking <- NULL
+dat$Mth_BookingsinceActive <-NULL
+dat$countries <- NULL
+set.seed(755)
+n_test <- round(nrow(dat) * 0.4)
+test_indices <- sample(1:nrow(dat), n_test, replace=FALSE)
+test <- dat[test_indices,]
+train <- dat[-test_indices,]
+rm(dat) #to save space 
 
-```{r}
+n_train <- round(nrow(train) / 5)
+train_indices <- sample(1:nrow(train), n_train, replace=FALSE)
+dtrain <- train[train_indices,]
+library(xgboost)
+label <- as.numeric(dtrain[[56]])
+data <- as.matrix(sapply(dtrain[2:55], as.numeric))
 
+cv.res <- xgb.cv(data = data, nfold = 3, label = label,  
+                 objective = "multi:softmax", num_class = 12,
+                 eval_metric = "merror",
+                 nrounds = 1000, nthread =8, 
+                 eta = 0.05, gamma = 1,  
+                 max_depth = 4, min_child_weight = 1, max_delta_step = 1, verbose = F, 
+                 subsample = 0.8, colsample_bytree = 0.8)
+
+xgb.func <- xgboost(data = data, label = label, objective = "multi:softmax", num_class = 12,
+                    eval_metric = "merror",
+                    nrounds = 200, nthread =8, 
+                    eta = 0.05, gamma = 1,  
+                    max_depth = 4, min_child_weight = 1, max_delta_step = 1, verbose = F, 
+                    subsample = 0.8, colsample_bytree = 0.8)
+
+importance_matrix<-xgb.importance(dimnames(data)[[2]], model = xgb.func)
+xgb.plot.importance(importance_matrix)
 ```
 
-### Problem 3
+Now let's check how did the xgboost model do on test data. 
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+dtest <- as.matrix(sapply(test[2:55], as.numeric))
+pred <- predict(xgb.func, dtest)
+testlabel <- as.numeric(test[[56]])
+sumit <-data.frame(true_target = testlabel,predicted = pred)
+n_correct <- sumit %>% 
+  mutate(error=true_target-predicted) %>%
+  filter(error=="0") %>%
+  summarise(n())
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
-
+#error 
+#(nrow(test) - n_correct) / nrow(test)
+error.rate <- 0.3808035
+xgb_results <- data_frame(method="XGBoost",  ErrorRate = error.rate )
+xgb_results %>% kable
 ```
 
-You can also embed plots, for example:
 
-```{r, echo=FALSE}
 
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
