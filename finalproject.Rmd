@@ -1,0 +1,281 @@
+---
+title: 'Final Project: AirBnB New User Bookings'
+author: "Di Wu, Samuel Chao and Bry Power"
+output: html_document
+---
+
+load libraries
+```{r, warning=FALSE, message=FALSE}
+library(knitr)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(gridExtra)
+
+```
+
+
+load data
+```{r}
+setwd("U:/Documents/Courses/107/final project/Original Dataset")
+dat <- read_csv("train_users_2.csv")
+dat <- rename(dat, countries=country_destination)
+
+```
+
+## Exploratory Data Analysis
+
+### Target 
+
+Our target is to predict in which country a new user will make his/her first booking through AirBnB. There are 12 possible outcomes of the destination country: **'US', 'FR' (France), 'CA' (Canada), 'GB' (United Kingdom), 'ES' (Spain), 'IT' (Italy), 'PT' (Portugal), 'NL' (Netherlands),'DE' (Germany), 'AU' (Australia), 'NDF' (no destination found), and 'other'.* Please note that *'NDF'* is different from *'other'** because 'other' means there was a booking, but is to a country not included in the list, while 'NDF' means there wasn't a booking.
+
+First let's take a look at the distribution of users' destination: 
+
+```{r, fig.width=14, fig.height=5, echo=FALSE}
+ggplot(dat, aes(countries, fill=countries)) + 
+  geom_bar() +
+  ylab("Users in counts") +
+  ggtitle("Users' Destination Distribution")
+
+countries <- c("AU - Australia", "CA - Canada", "DE - Germany","ES - Spain","FR - France","GB - United Kingdom","IT - Italy","NDF - no destination found","NL - Netherlands","other","PT - Portugal","US - United States") 
+bookings <- c(539,1428,1061,2249,5023,2324,2835,124543,762,10094,217,62376) 
+percentage <- c(0.25, 0.67, 0.50,1.05,2.35,1.09,1.33,58.35,0.36,4.73,0.10,29.22) 
+
+distn.y <- bind_rows(data_frame(Countries=countries,  
+                                     "Number of Bookings" = bookings,
+                                     "Percentage of Bookings" = percentage))
+distn.y <- distn.y %>% arrange(bookings)
+distn.y %>% kable
+
+```
+
+From users' booking destinations we can tell most of users didn't book any trips and among those who booked their first trips, majority of them had chosen *'US'* as their first destination. This makes sense because all of the users are located in the US and taking financial costs and time in consideration, US natrually should be the most popular destination compared to trips to Europe or even to Australia, which cost users much more money and time.
+
+However, such inbalanced distribution within users' destinations will generate bias in model. In another word, because there are much more users who chose US than those who chose Europe, model has less opportunties to learn from users whose destination located in Europe. 
+
+Oversampling could be a solution for such scenario but oversampled data might NOT be practical as we've discussed above, we are to perdict US users' booking perference not to perdict users' from all over the world. Therefore, we will leave the target as it is for the rest of our analysis. 
+
+### Users' Demographics Profiling
+
+#### Users' Gender
+
+Now, let's take a look at gender distribution against our target. What we are trying to find here is to see if we can combine sub-categories based on its proportion in the data as well as on its penetration against target. That is to compare the difference between each sub-category and within. 
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+#difference between sub-categories among destinations
+gender.eda <- ggplot(dat, aes(gender, fill=countries)) 
+gender.g1 <- gender.eda + geom_bar(aes(position="stack")) +
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between gender's sub-categories among destinations")
+
+#difference within sub-categories among destinations
+gender.g2 <- gender.eda + geom_bar(position="fill") +
+  ylab("destination distribution in percentage") +
+  ggtitle("Difference within gender's sub-categories among destinations")
+
+#put var plots together
+grid.arrange(gender.g1, gender.g2, nrow=1)
+
+```
+
+From the bar chart on the left side, we see sub-category "OTHER" is a very small group and therefore we will treat it as "-unknown-". **From the bar chart on the right side above, we see the booking rate is much higher if we know users' gender.** We can almost see some slightly difference between male and female's booking preference as it shows a more colorful spectrum in the bottom from both bars. And from the chart legend, we know more colorful spectrum represents destinations in Europe and Australia. **Therefore, it might indicate that compared to male users, female users preferred to book more romantic destinations.** Now, let's take a closer look at gender preference among destinations in Europe and Australia. 
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+gender.g3 <- dat %>%
+  filter(gender %in% c("FEMALE", "MALE") & countries %in% c("AU","CA", "DE", "ES", "FR", "GB", "IT", "NL", "PT")) %>%
+  ggplot(., aes(countries, fill=gender)) 
+gender.g3 +
+  geom_bar(position="dodge") +
+  ylab("destination distribution in counts") +
+  ggtitle("Destinations, without US, NDF and other, distribution against Gender, female and male users")
+  
+```
+
+**This chart above confirms our earlier assumption, female users indeed showed a preference to more romantic destinations such as Spain, France, UK and Italy.**
+
+
+#### Users' Language
+
+Because all of the users are located in US, over 96% of language is English. We will combine those non-English languages into one new category based on this in order to produce a robust model performance. However, we would assume that users with French background maybe more likely to travel to France but these non-English languages are too small, we would only use language as an indicator variable with two levels: English or non-English. 
+
+In order to visualize these data, we used log transformation in the following chart. 
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+#difference between sub-categories among destinations
+language.eda <- ggplot(dat, aes(language, fill=countries)) 
+language.eda + geom_bar(aes(position="stack")) + 
+  scale_y_log10() +
+  ylab("destination distribution in log counts") +
+  ggtitle("Difference between language's sub-categories among destinations")
+```
+
+
+#### Users' Signup Method
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+#difference between sub-categories among destinations
+method.eda <- ggplot(dat, aes(signup_method, fill=countries)) 
+method.g1 <- method.eda + geom_bar(aes(position="stack")) + 
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between sign-up method's sub-categories among destinations")
+
+#difference within sub-categories among destinations
+method.g2 <- method.eda + geom_bar(position="fill") +
+  ylab("destination distribution in percentage") +
+  ggtitle("Difference within sign-up method's sub-categories among destinations")
+
+#put var plots together
+grid.arrange(method.g1, method.g2, nrow=1)
+
+```
+
+We can tell users whose signup method is "basic" has a higher booking rate from the bar chart above. Although sub-category "google" is very small, about 550 users, we will not combine this to any of the other two categories because from the chart on the right side, the destination distribution within this group looks very different than the other two. 
+
+#### Users' Signup Flow
+
+This variable shows the page a user came to signed up from. It creates a lot of noise in the data as there is ONE dominating sub-category, page-0, taking about 78% of the data and a few other smaller pages, for example page-2, page-3, page-12. The remaining sub-categories almost are very small and only took about 1% of the data. We will combine these small groups. To better visualize the data, we again used log transformation.
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+#difference between sub-categories among destinations
+flow.eda <- ggplot(dat, aes(signup_flow, fill=countries)) 
+flow.eda + geom_bar(aes(position="stack")) + 
+  scale_y_log10() +
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between sign-up flow's sub-categories among destinations")
+
+```
+
+
+#### Users' Signup App
+
+This variable shows the application a user signed up from. There are four sub-categories, Android, iOS, Moweb and Web, where Android and iOS are mobile apps, Web is a desktop app and moweb could be a combination of both. 
+
+```{r, fig.width=14, fig.height=4.5, echo=FALSE}
+#difference between sub-categories among destinations
+app.eda <- ggplot(dat, aes(signup_app, fill=countries)) 
+app.g1 <- app.eda + geom_bar(aes(position="stack")) + 
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between sign-up app's sub-categories among destinations")
+
+#difference within sub-categories among destinations
+app.g2 <- app.eda + geom_bar(position="fill") +
+  ylab("destination distribution in percentage") +
+  ggtitle("Difference within sign-up app's sub-categories among destinations")
+
+#put var plots together
+grid.arrange(app.g1, app.g2, nrow=1)
+
+```
+
+Mayjority of the users signed up from a desktop and they generated a higher booking rate. Beside that, we also see that compared to Android, there are more users signed up using iOS and they did also generated a higher booking rate. **It tells us that AirBnB should place more focus on users who signed up using iPhone compared to Android phones.**
+
+We will confirm this story in next categorical varible, first signed up device. 
+
+#### Users' First Signup Device
+
+In this variable, there are about 9 sub-categories but in fact partition it into 5, which are Apple Mobile, "iPad" and "iPhone"; Apple desktop, "Mac Desktop"; Android, "Android Phone" and "Android Tablet"; Windows, "Windows Desktop" and other, "Desktop(other)", "other/unknown", "smartphone". 
+
+```{r, fig.width=14, fig.height=10, echo=FALSE}
+#difference between sub-categories among destinations
+device.eda <- ggplot(dat, aes(first_device_type, fill=countries)) 
+device.g1 <- device.eda + geom_bar(aes(position="stack")) + 
+  ylab("destination distribution in counts") +
+  ggtitle("Difference between first device type's sub-categories among destinations")
+
+#difference within sub-categories among destinations
+device.g2 <- device.eda + geom_bar(position="fill") +
+  ylab("destination distribution in percentage") +
+  ggtitle("Difference within first device type's sub-categories among destinations")
+
+#put var plots together
+grid.arrange(device.g1, device.g2)
+```
+
+This is again confirmed our earlier story. Majority of the users are Apple users and desktop users generates a higher booking rate. A closer look at within mobile device, iOS users is agian the majority and generally outperforms Android users. Among users who signed from a computer rather than a phone, those who used Mac seems a more colorful spectrum in the bottom of the bar compared to those used Windows desktop. 
+
+**From these two variables, we are probably more confident to say that AirBnB should place more focus on the Apple users.**
+
+
+## Model Development
+
+### Feature Engineering
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+```
+
+### General Naive Bayes Classifiers
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+```
+
+### Random Forest
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+```
+
+### Extreme Gradient Boosting
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+```
+
+## Discussion
+
+### Problem 1
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+```
+
+### Problem 2
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+```
+
+### Problem 3
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
