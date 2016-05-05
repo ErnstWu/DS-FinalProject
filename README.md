@@ -1,6 +1,5 @@
 # DS-FinalProject
-
-## Di Wu, Samuel Chao, Bry Power
+completed by Di Wu, Samuel Chao, Bry Power
 
 ## Description
 Final project for CSCI E-107 / Bio 260 Introduction to Data Science.  AirBnb New User Bookings
