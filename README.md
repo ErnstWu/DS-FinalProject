@@ -1,8 +1,16 @@
 # DS-FinalProject
 
-This is the final project of class Introduction to Data Science, completed by Di Wu, Sam Chao and Bry Power. 
+## Di Wu, Samuel Chao, Bry Power
 
-It contains the original data sets, R codes, R markdown, a kintted .html file and some SAS code. The ModelDst.csv is the dataset we used for our modeling practics. 
+## Description
+Final project for CSCI E-107 / Bio 260 Introduction to Data Science.  AirBnb New User Bookings
+
+## Details for teaching team / main project files
+* finalproject.Rmd
+* finalproject.html
+* SAS code.sas file contains data cleaning and manipulation in SAS
+* data.zip contains original data files from kaggle
+* ModelDst.csv contains cleaned data used for modeling
 
 Here is the motivation and project objective:
 
